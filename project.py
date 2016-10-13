@@ -1,3 +1,4 @@
+# constants for project
 import datetime
 
 labeled = "data/labeledTrainData.tsv"

@@ -62,12 +62,13 @@ freq = np.sum(train_data_features, axis=0)
 print("Examine bag of words...")
 for token, frq in list(zip(vocab, freq))[:15]:
     print("%s: %d" % (token, frq))
+print('\n')
 
-print("Training random forest...")
+print("Training random forest...\n")
 forest = RandomForestClassifier(n_estimators=100)
 forest = forest.fit(train_data_features, train.sentiment)
 
-print("Create submission...")
+print("Create submission...\n")
 # load test data
 test_df = pd.read_csv(project.test_data, header=0, delimiter="\t", quoting=csv.QUOTE_NONE)
 
@@ -88,4 +89,4 @@ test_df.to_csv(output_file, \
                index=False, \
                quoting=csv.QUOTE_NONE)
 
-print("Wrote %s" % output_file)
+print("Wrote %s\n" % output_file)
