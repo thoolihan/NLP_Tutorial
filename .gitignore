@@ -3,3 +3,4 @@ data/*.zip
 data/*.csv
 data/*.tsv
 **/__pycache__/
+output/*.csv

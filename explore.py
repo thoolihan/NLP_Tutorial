@@ -7,6 +7,7 @@ import nltk
 from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import CountVectorizer
 import numpy as np
+from sklearn.ensemble import RandomForestClassifier
 
 # load
 train = pd.read_csv(project.labeled, header=0, delimiter="\t", quoting=csv.QUOTE_NONE)
@@ -59,5 +60,32 @@ vocab = vectorizer.get_feature_names()
 freq = np.sum(train_data_features, axis=0)
 
 print("Examine bag of words...")
-for token, frq in zip(vocab, freq):
+for token, frq in list(zip(vocab, freq))[:15]:
     print("%s: %d" % (token, frq))
+
+print("Training random forest...")
+forest = RandomForestClassifier(n_estimators=100)
+forest = forest.fit(train_data_features, train.sentiment)
+
+print("Create submission...")
+# load test data
+test_df = pd.read_csv(project.test_data, header=0, delimiter="\t", quoting=csv.QUOTE_NONE)
+
+# clean reviews
+clean_test_reviews = test_df.review.map(tokenize_review)
+
+# get bag of words
+test_data_features = vectorizer.transform(clean_test_reviews).toarray()
+
+# predict with model
+test_df['sentiment'] = forest.predict(test_data_features)
+
+# write csv
+output_file = project.get_output_name()
+
+test_df.to_csv(output_file, \
+               columns=['id', 'sentiment'], \
+               index=False, \
+               quoting=csv.QUOTE_NONE)
+
+print("Wrote %s" % output_file)
