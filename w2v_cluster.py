@@ -9,11 +9,15 @@ from nltk.corpus import stopwords
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV
+from sklearn.cluster import KMeans
 from gensim.models import Word2Vec
 import logging
+import time
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',\
     level=logging.INFO)
+
+start = time.time()
 
 # load
 train = pd.read_csv(project.labeled, header=0, delimiter="\t", quoting=csv.QUOTE_NONE)
@@ -80,42 +84,63 @@ def getAvgFeatureVecs(reviews, model, num_features):
 
 model = Word2Vec.load(project.w2v_model)
 
-logging.info("Create average feature vecs for training set")
-clean_train_reviews = []
-for review in train.review:
-    clean_train_reviews.append(tokenize_review(review, remove_stopwords=True))
+word_vectors = model.syn0
+num_clusters = int(word_vectors.shape[0] / 5)
 
-trainDataVecs = getAvgFeatureVecs(clean_train_reviews, model, project.num_features)
+logging.info("Creating clusters...")
+kmeans_clustering = KMeans(n_clusters=num_clusters)
+idx = kmeans_clustering.fit_predict(word_vectors)
 
-logging.info("Create average feature vecs for testing set")
-clean_test_reviews = []
-for review in test.review:
-    clean_test_reviews.append(tokenize_review(review, remove_stopwords=True))
+word_centroid_map = dict(zip( model.index2word, idx ))
 
-testDataVecs = getAvgFeatureVecs(clean_test_reviews, model, project.num_features)
+for cluster in range(0,10):
+    print("\nCluster %d" % cluster)
+    words = []
+    for k,v in word_centroid_map.items():
+        if v == cluster:
+            words.append(k)
+    print(words)
 
-# create model
-logging.info("Training random forest...")
-param_grid = {'n_estimators': [95, 100, 105]}
+# logging.info("Create average feature vecs for training set")
+# clean_train_reviews = []
+# for review in train.review:
+#     clean_train_reviews.append(tokenize_review(review, remove_stopwords=True))
 
-forest = RandomForestClassifier()
-model = GridSearchCV(forest, param_grid = param_grid)
-model.fit(trainDataVecs, train.sentiment)
+# trainDataVecs = getAvgFeatureVecs(clean_train_reviews, model, project.num_features)
 
-logging.info("Tuned hyperparameters:")
-logging.info(model.best_params_)
+# logging.info("Create average feature vecs for testing set")
+# clean_test_reviews = []
+# for review in test.review:
+#     clean_test_reviews.append(tokenize_review(review, remove_stopwords=True))
 
-logging.info("Create submission...\n")
+# testDataVecs = getAvgFeatureVecs(clean_test_reviews, model, project.num_features)
 
-# predict with model
-test['sentiment'] = model.predict(testDataVecs)
+# # create model
+# logging.info("Training random forest...")
+# param_grid = {'n_estimators': [95, 100, 105]}
 
-# write csv
-output_file = project.get_output_name('forest-w2v-avg')
+# forest = RandomForestClassifier()
+# model = GridSearchCV(forest, param_grid = param_grid)
+# model.fit(trainDataVecs, train.sentiment)
 
-test.to_csv(output_file, \
-               columns=['id', 'sentiment'], \
-               index=False, \
-               quoting=csv.QUOTE_NONE)
+# logging.info("Tuned hyperparameters:")
+# logging.info(model.best_params_)
 
-logging.info("Wrote %s\n" % output_file)
+# logging.info("Create submission...\n")
+
+# # predict with model
+# test['sentiment'] = model.predict(testDataVecs)
+
+# # write csv
+# output_file = project.get_output_name('forest-w2v-avg')
+
+# test.to_csv(output_file, \
+#                columns=['id', 'sentiment'], \
+#                index=False, \
+#                quoting=csv.QUOTE_NONE)
+
+# logging.info("Wrote %s\n" % output_file)
+
+end = time.time()
+elapsed = end - start
+logging.info("Time taken for K Means clustering: %f seconds" % elapsed)
