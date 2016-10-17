@@ -2,15 +2,10 @@ import project
 from review_processor import ReviewProcessor
 import pandas as pd
 import csv
-from bs4 import BeautifulSoup
-import re
-import nltk
-import nltk.data
-from nltk.corpus import stopwords
 import numpy as np
+from gensim.models import Word2Vec
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV
-from gensim.models import Word2Vec
 import logging
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',\
@@ -20,7 +15,7 @@ logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',\
 train = pd.read_csv(project.labeled, header=0, delimiter="\t", quoting=csv.QUOTE_NONE)
 test = pd.read_csv(project.test_data, header=0, delimiter="\t", quoting=csv.QUOTE_NONE)
 
-model = Word2Vec.load(project.w2v_model)
+embeddings = Word2Vec.load(project.w2v_model)
 rp = ReviewProcessor()
 
 logging.info("Create average feature vecs for training set")
@@ -28,18 +23,18 @@ clean_train_reviews = []
 for review in train.review:
     clean_train_reviews.append(rp.tokenize_review(review, remove_stopwords=True))
 
-trainDataVecs = rp.getAvgFeatureVecs(clean_train_reviews, model, project.num_features)
+trainDataVecs = rp.getAvgFeatureVecs(clean_train_reviews, embeddings, project.num_features)
 
 logging.info("Create average feature vecs for testing set")
 clean_test_reviews = []
 for review in test.review:
     clean_test_reviews.append(rp.tokenize_review(review, remove_stopwords=True))
 
-testDataVecs = rp.getAvgFeatureVecs(clean_test_reviews, model, project.num_features)
+testDataVecs = rp.getAvgFeatureVecs(clean_test_reviews, embeddings, project.num_features)
 
 # create model
 logging.info("Training random forest...")
-param_grid = {'n_estimators': [95, 100, 105]}
+param_grid = {'n_estimators': [95, 100]}
 
 forest = RandomForestClassifier()
 model = GridSearchCV(forest, param_grid = param_grid)

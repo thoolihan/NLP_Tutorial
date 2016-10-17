@@ -57,12 +57,12 @@ class ReviewProcessor:
         return(np.divide(featureVec, nwords))
 
     def getAvgFeatureVecs(self, reviews, model, num_features):
-        counter = 0.
+        counter = 0
 
         reviewFeatureVecs = np.zeros((len(reviews), num_features), dtype="float32")
 
         for review in reviews:
-            if counter % 1000. == 0.:
+            if counter % 1000 == 0:
                 logging.info("Review %d of %d" % (counter, len(reviews)))
             reviewFeatureVecs[counter] = self.makeFeatureVec(review, model, num_features)
             counter += 1

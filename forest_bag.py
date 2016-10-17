@@ -2,10 +2,6 @@ import project
 from review_processor import ReviewProcessor
 import pandas as pd
 import csv
-from bs4 import BeautifulSoup
-import re
-import nltk
-from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import CountVectorizer
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
