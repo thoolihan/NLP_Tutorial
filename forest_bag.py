@@ -1,4 +1,5 @@
 import project
+from review_processor import ReviewProcessor
 import pandas as pd
 import csv
 from bs4 import BeautifulSoup
@@ -17,34 +18,18 @@ print(train.shape)
 print(train.columns.values)
 print('\n')
 
-# called review_to_words in kaggle tutorial
-def tokenize_review(raw_review):
-    # remove markup
-    review_text = BeautifulSoup(raw_review, "html.parser").get_text()
-
-    # remove punctuation
-    letters_only = re.sub("[^a-zA-Z]", " ", review_text)
-
-    # lowercase and split
-    words = letters_only.lower().split()
-
-    # create set of stopwords (faster than list)
-    stops = set(stopwords.words("english"))
-
-    # filter stops
-    words = [w for w in words if not w in stops]
-
-    # back to string
-    return(" ".join(words))
+rp = ReviewProcessor()
+def parse(r):
+    return " ".join(rp.tokenize_review(r, remove_stopwords = True, remove_numbers = True))
 
 # test with first review
 print('First review example clean:')
-print(tokenize_review(train.review[0]))
+print(parse(train.review[0]))
 print('\n')
 
 # clean all reviews
 print("Cleaning all reviews...\n")
-train.review = train.review.map(tokenize_review)
+train.review = train.review.map(parse)
 
 # create bag of words
 print("Creating bag of words...\n")
@@ -73,7 +58,7 @@ print("Create submission...\n")
 test_df = pd.read_csv(project.test_data, header=0, delimiter="\t", quoting=csv.QUOTE_NONE)
 
 # clean reviews
-clean_test_reviews = test_df.review.map(tokenize_review)
+clean_test_reviews = test_df.review.map(parse)
 
 # get bag of words
 test_data_features = vectorizer.transform(clean_test_reviews).toarray()

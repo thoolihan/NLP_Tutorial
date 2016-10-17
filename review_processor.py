@@ -14,12 +14,15 @@ class ReviewProcessor:
         self.stopwords = set(stopwords)
 
     # called review_to_words in kaggle tutorial
-    def tokenize_review(self, raw_review, remove_stopwords = False):
+    def tokenize_review(self, raw_review, remove_stopwords = False, remove_numbers = False):
         # remove markup
         review_text = BeautifulSoup(raw_review, "html.parser").get_text()
 
         # remove punctuation
-        letters_only = re.sub("[^a-zA-Z0-9]", " ", review_text)
+        if remove_numbers:
+            letters_only = re.sub("[^a-zA-Z]", " ", review_text)
+        else:
+            letters_only = re.sub("[^a-zA-Z0-9]", " ", review_text)
 
         # lowercase and split
         words = letters_only.lower()
