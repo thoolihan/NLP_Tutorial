@@ -4,3 +4,5 @@ data/*.csv
 data/*.tsv
 **/__pycache__/
 output/*.csv
+*.pickle
+300features_40minwords_10context

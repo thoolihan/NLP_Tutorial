@@ -10,6 +10,8 @@ num_features = 300
 
 output_template = "output/%s-%s.csv"
 
+word_centroid_map_pickle_file = "word_centroid_map.pickle"
+
 def get_output_name(model='forest-bag-words'):
     current = datetime.datetime.now()
     return(output_template % (current.strftime("%Y.%m.%d.%H.%M.%S"), model))

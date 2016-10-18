@@ -1,16 +1,11 @@
 import project
+from review_processor import ReviewProcessor
 import pandas as pd
 import csv
-from bs4 import BeautifulSoup
-import re
-import nltk
-import nltk.data
-from nltk.corpus import stopwords
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import GridSearchCV
-from sklearn.cluster import KMeans
 from gensim.models import Word2Vec
+import pickle
 import logging
 import time
 
@@ -23,124 +18,67 @@ start = time.time()
 train = pd.read_csv(project.labeled, header=0, delimiter="\t", quoting=csv.QUOTE_NONE)
 test = pd.read_csv(project.test_data, header=0, delimiter="\t", quoting=csv.QUOTE_NONE)
 
-tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+embeddings = Word2Vec.load(project.w2v_model)
+rp = ReviewProcessor()
 
-# called review_to_words in kaggle tutorial
-def tokenize_review(raw_review, remove_stopwords = False):
-    # remove markup
-    review_text = BeautifulSoup(raw_review, "html.parser").get_text()
+logging.info("Create vecs for train reviews")
+clean_train_reviews = []
+for review in train.review:
+    clean_train_reviews.append(rp.tokenize_review(review, remove_stopwords=True))
 
-    # remove punctuation
-    letters_only = re.sub("[^a-zA-Z0-9]", " ", review_text)
+logging.info("Create vecs for test reviews")
+clean_test_reviews = []
+for review in test.review:
+    clean_test_reviews.append(rp.tokenize_review(review, remove_stopwords=True))
 
-    # lowercase and split
-    words = letters_only.lower()
-
-    # split
-    words = words.split()
-
-    if remove_stopwords:
-        # create set of stopwords (faster than list)
-        stops = set(stopwords.words("english"))
-
-        # filter stops
-        words = [w for w in words if not w in stops]
-
-    # back to string
-    return(words)
-
-def review_to_sentences(review, tokenizer=tokenizer, remove_stopwords = False):
-    raw_sentences = tokenizer.tokenize(review.strip())
-    sentences = []
-    for raw in raw_sentences:
-        if len(raw) > 0:
-            sentences.append(tokenize_review(raw, remove_stopwords))
-    return(sentences)
-
-def makeFeatureVec(words, model, num_features):
-    featureVec = np.zeros((num_features,), dtype="float32")
-    nwords = 0.
-    index2word_set = set(model.index2word)
-
-    for word in words:
-        if word in index2word_set:
-            nwords += 1
-            featureVec = np.add(featureVec, model[word])
-
-    return(np.divide(featureVec, nwords))
-
-def getAvgFeatureVecs(reviews, model, num_features):
-    counter = 0.
-
-    reviewFeatureVecs = np.zeros((len(reviews), num_features), dtype="float32")
-
-    for review in reviews:
-        if counter % 1000. == 0.:
-            logging.info("Review %d of %d" % (counter, len(reviews)))
-        reviewFeatureVecs[counter] = makeFeatureVec(review, model, num_features)
-        counter += 1
-
-    return reviewFeatureVecs
-
-model = Word2Vec.load(project.w2v_model)
-
-word_vectors = model.syn0
+word_vectors = embeddings.syn0
 num_clusters = int(word_vectors.shape[0] / 5)
 
-logging.info("Creating clusters...")
-kmeans_clustering = KMeans(n_clusters=num_clusters)
-idx = kmeans_clustering.fit_predict(word_vectors)
+logging.info("Loading clusters...")
 
-word_centroid_map = dict(zip( model.index2word, idx ))
+word_centroid_map = pickle.load(open(project.word_centroid_map_pickle_file, "rb"))
 
-for cluster in range(0,10):
-    print("\nCluster %d" % cluster)
-    words = []
-    for k,v in word_centroid_map.items():
-        if v == cluster:
-            words.append(k)
-    print(words)
+def create_bag_of_centroids(wordlist, word_centroid_map = word_centroid_map):
+    num_centroids = max(word_centroid_map.values()) + 1
+    bag_of_centroids = np.zeros(num_centroids, dtype="float32")
+    for word in wordlist:
+        if word in word_centroid_map:
+            index = word_centroid_map[word]
+            bag_of_centroids[index] += 1.
+    return bag_of_centroids
 
-# logging.info("Create average feature vecs for training set")
-# clean_train_reviews = []
-# for review in train.review:
-#     clean_train_reviews.append(tokenize_review(review, remove_stopwords=True))
+train_centroids = np.zeros((train.review.size, num_clusters), dtype = "float32")
+test_centroids = np.zeros((test.review.size, num_clusters), dtype = "float32")
 
-# trainDataVecs = getAvgFeatureVecs(clean_train_reviews, model, project.num_features)
+logging.info("Creating bag of centroids for train set")
+counter = 0
+for review in clean_train_reviews:
+    train_centroids[counter] = create_bag_of_centroids(review)
+    counter += 1
 
-# logging.info("Create average feature vecs for testing set")
-# clean_test_reviews = []
-# for review in test.review:
-#     clean_test_reviews.append(tokenize_review(review, remove_stopwords=True))
+logging.info("Creating bag of centroids for test set")
+counter = 0
+for review in clean_test_reviews:
+    test_centroids[counter] = create_bag_of_centroids(review)
+    counter += 1
 
-# testDataVecs = getAvgFeatureVecs(clean_test_reviews, model, project.num_features)
+logging.info("Training model")
+model = RandomForestClassifier(n_estimators = 100)
+model = model.fit(train_centroids, train.sentiment)
 
-# # create model
-# logging.info("Training random forest...")
-# param_grid = {'n_estimators': [95, 100, 105]}
+logging.info("Predicting test set")
+test['sentiment'] = model.predict(test_centroids)
 
-# forest = RandomForestClassifier()
-# model = GridSearchCV(forest, param_grid = param_grid)
-# model.fit(trainDataVecs, train.sentiment)
+output_file = project.get_output_name('forest-w2v-kmeans')
 
-# logging.info("Tuned hyperparameters:")
-# logging.info(model.best_params_)
+test.to_csv(output_file, \
+               columns=['id', 'sentiment'], \
+               index=False, \
+               quoting=csv.QUOTE_NONE)
 
-# logging.info("Create submission...\n")
+logging.info("Wrote %s\n" % output_file)
 
-# # predict with model
-# test['sentiment'] = model.predict(testDataVecs)
-
-# # write csv
-# output_file = project.get_output_name('forest-w2v-avg')
-
-# test.to_csv(output_file, \
-#                columns=['id', 'sentiment'], \
-#                index=False, \
-#                quoting=csv.QUOTE_NONE)
-
-# logging.info("Wrote %s\n" % output_file)
 
 end = time.time()
 elapsed = end - start
-logging.info("Time taken for K Means clustering: %f seconds" % elapsed)
+logging.info("Time taken to build model on cluster map: %f seconds" % elapsed)
